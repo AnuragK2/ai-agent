@@ -1,7 +1,7 @@
 from openai import APIConnectionError, AsyncOpenAI, RateLimitError, APIError
 import os
 from typing import Any, AsyncGenerator
-from client.response import TextDelta, StreamEvent, TokenUsage, EventType
+from client.response import TextDelta, StreamEvent, TokenUsage, StreamEventType
 import asyncio
 
 class LLMClient:
@@ -94,7 +94,7 @@ class LLMClient:
                     await asyncio.sleep(wait_time)
                 else:
                     yield StreamEvent(
-                        type=EventType.ERROR,
+                        type=StreamEventType.ERROR,
                         error=f"Rate limit exceeded: {e}",
                     )
                     return
@@ -105,14 +105,14 @@ class LLMClient:
                     await asyncio.sleep(wait_time)
                 else:
                     yield StreamEvent(
-                        type=EventType.ERROR,
+                        type= StreamEventType.ERROR,
                         error=f"API connection error: {e}",
                     )
                     return
 
             except APIError as e:
                     yield StreamEvent(
-                        type=EventType.ERROR,
+                        type= StreamEventType.ERROR,
                         error=f"API error: {e}",
                     )
                     return
@@ -168,12 +168,12 @@ class LLMClient:
 
             if delta.content:
                 yield StreamEvent(
-                    type=EventType.TEXT_DELTA,
+                    type=StreamEventType.TEXT_DELTA,
                     text_delta=TextDelta(content=delta.content),
                 )
 
         yield StreamEvent(
-            type=EventType.MESSAGE_COMPLETE,
+            type=StreamEventType.MESSAGE_COMPLETE,
             finish_reason=finish_reason,
             usage=usage
         )
@@ -218,7 +218,7 @@ class LLMClient:
             )
 
         return StreamEvent(
-            type=EventType.MESSAGE_COMPLETE,
+            type=StreamEventType.MESSAGE_COMPLETE,
             usage=usage,
             finish_reason=response.choices[0].finish_reason,
             text_delta=text_delta,
