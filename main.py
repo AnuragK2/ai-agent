@@ -41,7 +41,9 @@ class CLI:
             elif event.type==AgentEventType.AGENT_ERROR:
                 error = event.data.get("error", "Unknown error occurred")
                 if assistant_streaming:
-                    console.print(f"[error]Error: {error}[/error]")
+                    self.tui.end_assistant()
+                    assistant_streaming=False
+                self.tui.print_error(error)
         return final_response
             
 

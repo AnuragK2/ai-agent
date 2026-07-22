@@ -125,6 +125,10 @@ class TUI:
         
     def stream_assistant_delta(self, content: str)-> None:
         self.console.print(content, end="", markup=False)
+
+    def print_error(self, message: str)-> None:
+        self.console.print()
+        self.console.print(f"[error]Error: {message}[/error]")
         
     
         
