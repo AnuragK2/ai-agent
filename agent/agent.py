@@ -16,7 +16,7 @@ class Agent:
     async def run(self, message: str):
         yield AgentEvent.agent_start(message)
         # add user message to context
-        
+        final_response:str | None = None
         async for event in self._agentic_loop(message):
             yield event
             
@@ -30,12 +30,12 @@ class Agent:
         
         response_text = ""
         
-        
         async for event in self.client.chat_completion(messages, stream=True):
             if event.type == StreamEventType.TEXT_DELTA:
-                content = event.text_delta.content
-                response_text += content
-                yield AgentEvent.text_delta(content)
+                if event.text_delta:
+                    content = event.text_delta.content
+                    response_text += content
+                    yield AgentEvent.text_delta(content)
                 
             elif event.type==StreamEventType.ERROR:
                 yield AgentEvent.agent_error(event.error or "Unknown error occurred")
