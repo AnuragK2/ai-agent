@@ -5,6 +5,10 @@ from agent.events import AgentEventType
 from ui.tui import TUI
 from ui.tui import get_console
 import sys
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 console=get_console()
 class CLI:
