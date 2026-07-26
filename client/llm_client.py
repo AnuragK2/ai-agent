@@ -50,8 +50,23 @@ class LLMClient:
         if self._client:
             await self._client.close()
             self._client = None
+            
+    def _build_tools(self, tools:list[dict[str,Any]]):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get('description', ''),
+                    "parameters": tool.get('parameters', {'type': 'object', 'properties': {}}),
+                }
+            }
+            for tool in tools
+            
+        ]
+        
 
-    async def chat_completion(self, messages: list[dict[str, any]], stream: bool = True,)->AsyncGenerator[StreamEvent, None]:
+    async def chat_completion(self, messages: list[dict[str, any]], tools:list[dict[str,Any]] | None= None,stream: bool = True,)->AsyncGenerator[StreamEvent, None]:
         """Run a chat completion and yield normalized ``StreamEvent`` values.
 
         Builds the OpenAI request kwargs (model, messages, stream flag), then
@@ -78,6 +93,10 @@ class LLMClient:
             "messages":messages,
             "stream":stream,
         }
+        
+        if tools:
+            kwargs['tools']=self._build_tools(tools)
+            kwargs['tool_choice']='auto'
 
         for attempt in range(self.max_retries+1):
             try:
@@ -171,7 +190,8 @@ class LLMClient:
                     type=StreamEventType.TEXT_DELTA,
                     text_delta=TextDelta(content=delta.content),
                 )
-
+                
+            print(delta.tool_calls)
         yield StreamEvent(
             type=StreamEventType.MESSAGE_COMPLETE,
             finish_reason=finish_reason,
