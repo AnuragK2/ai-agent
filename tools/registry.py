@@ -10,7 +10,7 @@ logger=logging.getLogger(__name__)
 
 class ToolRegistry:
     def __init__(self):
-        self._tools=dict[str, Tool]={}
+        self._tools: dict[str, Tool] = {}
         
     def register_tool(self, tool: Tool)->None:
         if tool.name in self._tools:

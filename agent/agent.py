@@ -36,7 +36,7 @@ class Agent:
         
         tool_schemas=self.tool_registry.get_schemas()
         
-        async for event in self.client.chat_completion(self.context_manager.get_messages(), tool_schemas=tool_schemas if tool_schemas else None, stream=True):
+        async for event in self.client.chat_completion(self.context_manager.get_messages(), tools=tool_schemas if tool_schemas else None, stream=True):
             if event.type == StreamEventType.TEXT_DELTA:
                 if event.text_delta:
                     content = event.text_delta.content
