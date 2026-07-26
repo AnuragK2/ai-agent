@@ -1,7 +1,7 @@
 from openai import APIConnectionError, AsyncOpenAI, RateLimitError, APIError
 import os
 from typing import Any, AsyncGenerator
-from client.response import TextDelta, StreamEvent, TokenUsage, StreamEventType
+from client.response import TextDelta, StreamEvent, TokenUsage, StreamEventType, ToolCallDelta, ToolCall, parse_tool_call_arguments
 import asyncio
 
 class LLMClient:
@@ -167,7 +167,8 @@ class LLMClient:
         response= await client.chat.completions.create(**kwargs)
         usage: TokenUsage | None = None
         finish_reason: str | None = None
-
+        tool_calls: dict[int, dict[str, Any]] = {}
+        
         async for chunk in response:
             if hasattr(chunk, "usage") and chunk.usage:
                 usage=TokenUsage(
@@ -191,7 +192,48 @@ class LLMClient:
                     text_delta=TextDelta(content=delta.content),
                 )
                 
-            print(delta.tool_calls)
+            if delta.tool_calls:
+                for tool_call_delta in delta.tool_calls:
+                    idx=tool_call_delta.index
+                    if idx not in tool_calls:
+                        tool_calls[idx] = {
+                            'id': tool_call_delta.id or '',
+                            'name': '',
+                            'arguments': '',
+                        }
+                        if tool_call_delta.function:
+                            if tool_call_delta.function.name:
+                                tool_calls[idx]['name']=tool_call_delta.function.name
+                                yield StreamEvent(
+                                    type=StreamEventType.TOOL_CALL_START,
+                                    tool_call_delta=ToolCallDelta(
+                                        call_id=tool_calls[idx]['id'],
+                                        name=tool_calls[idx]['name'],
+
+                                    ),
+                                )
+                        if tool_call_delta.function.arguments:
+                            tool_calls[idx]['arguments']+=tool_call_delta.function.arguments
+                            yield StreamEvent(
+                                    type=StreamEventType.TOOL_CALL_DELTA,
+                                    tool_call_delta=ToolCallDelta(
+                                        call_id=tool_calls[idx]['id'],
+                                        name=tool_calls[idx]['name'],
+                                        arguments_delta=tool_call_delta.function.arguments,
+                                    ),
+                                )
+                
+        for idx, tc in tool_calls.items():
+            yield StreamEvent(
+                type=StreamEventType.TOOL_CALL_COMPLETE,
+                tool_call=ToolCall(
+                                        call_id=tc['id'],
+                                        name=tc['name'],
+                                        arguments=parse_tool_call_arguments(tc['arguments']),
+                                    ),
+                                )
+                                
+                        
         yield StreamEvent(
             type=StreamEventType.MESSAGE_COMPLETE,
             finish_reason=finish_reason,
@@ -228,6 +270,15 @@ class LLMClient:
         text_delta=None
         if message.content:
             text_delta=TextDelta(content=message.content)
+        
+        tool_calls: list[ToolCall] = []
+        if message.tool_calls:
+            for tc in message.tool_calls:
+                tool_calls.append(ToolCall(
+                    call_id=tc.id,
+                    name=tc.function.name,
+                    arguments=parse_tool_call_arguments(tc.function.arguments),
+                ))
 
         if response.usage:
             usage=TokenUsage(
