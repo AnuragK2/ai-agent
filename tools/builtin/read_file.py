@@ -29,6 +29,7 @@ class ReadFileTool(Tool):
     
     MAX_FILE_SIZE=1024*1024*10 # 10MB
     MAX_OUTPUT_TOKENS= 25000
+    _model_name = "gpt-4o-mini"
     
     async def execute(self, invocation: ToolInvocation)->ToolResult:
         
@@ -78,7 +79,7 @@ class ReadFileTool(Tool):
                 formatted_lines.append(f"{i:6} | {line}")
                 
             output='\n'.join(formatted_lines)
-            token_count=count_tokens(output)
+            token_count=count_tokens(output, self._model_name)
             truncated=False
             
             if token_count > self.MAX_OUTPUT_TOKENS:

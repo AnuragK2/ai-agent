@@ -62,7 +62,7 @@ class Agent:
             
         for tool_call in tool_calls:
             yield AgentEvent.tool_call_start(tool_call.call_id, tool_call.name, tool_call.arguments)
-            result=await self.tool_registry.invoke(tool_call.name, tool_call.arguments, Path.cwd)
+            result=await self.tool_registry.invoke(tool_call.name, tool_call.arguments, Path.cwd())
             yield AgentEvent.tool_call_complete(tool_call.call_id, tool_call.name, result)
             
             tool_call_results.append(ToolResultMessage(tool_call_id=tool_call.call_id, content=result.to_model_output(), is_error=not result.success))
