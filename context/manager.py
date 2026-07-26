@@ -29,7 +29,7 @@ class ContextManager:
         self._messages.append(item)
         
     def add_assistant_message(self, content: str) -> None:
-        item=MessageItem(role="assistant", content=content or "", token_count=count_tokens(content, self._model_name))
+        item=MessageItem(role="assistant", content=content or "", token_count=count_tokens(content or "", self._model_name))
         self._messages.append(item)
         
     def get_messages(self) -> list[dict[str, Any]]:
