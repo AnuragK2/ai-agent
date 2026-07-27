@@ -49,6 +49,22 @@ class CLI:
                     self.tui.end_assistant()
                     assistant_streaming=False
                 self.tui.print_error(error)
+            elif event.type==AgentEventType.TOOL_CALL_START:
+                tool_name = event.data.get("name", "Unknown tool")
+                tool_kind=None
+                tool=self.agent.tool_registry.get(tool_name)
+                if not tool:
+                    tool_kind=None
+                
+                tool_kind=tool.kind.value 
+                
+                self.tui.tool_call_start(
+                    event.data.get("call_id", ""),
+                    tool_name,
+                    tool_kind,
+                    event.data.get("arguments", {}),
+                )
+                
         return final_response
             
 
