@@ -6,6 +6,7 @@ from ui.tui import TUI
 from ui.tui import get_console
 import sys
 from dotenv import load_dotenv
+from pathlib import Path
 
 load_dotenv()
 
@@ -22,7 +23,41 @@ class CLI:
         async with Agent() as agent:
             self.agent = agent
             return await self._process_message(message)
-            
+        
+    async def run_interactive(self) -> str | None:
+        self.tui.print_welcome(
+            title="Welcome to the CLI",
+            lines=[
+                "This is a CLI for the agent.",
+                "You can interact with the agent by typing commands.",
+                "The agent will respond to your commands and provide information.",
+                " ",
+                f'model: "gpt-4o-mini"',
+                f"cwd: {Path.cwd()}",
+                'commands: /help /config /approval /model /exit'
+            ],
+        )
+        async with Agent() as agent:
+            self.agent = agent
+            while True:
+                try:
+                    user_input=console.input("[bold green]You:[/bold green] ").strip()
+                    if not user_input:
+                        continue
+                    await self._process_message(user_input)
+                    # result = await self._process_message(user_input)
+                    # if result:
+                    #     console.print(result)
+                    # else:
+                    #     console.print("[bold red]Error:[/bold red] Failed to process message")
+                        
+                except KeyboardInterrupt:
+                    console.print("\n[dim] Use /exit to quit[/dim]")
+                except EOFError:
+                    break
+        
+        console.print("[bold green]Goodbye![/bold green]")
+                
     
     def _get_tool_kind(self, tool_name: str) -> str | None:
         tool_kind=None
@@ -97,7 +132,8 @@ def main(prompt: str | None):
         result = asyncio.run(cli.run_single(prompt))
         if result is None:
             sys.exit(1)
-    
+    else:
+        asyncio.run(cli.run_interactive())
 
 if __name__ == "__main__":
     main()
