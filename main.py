@@ -42,7 +42,6 @@ class CLI:
         final_response:str | None = None
         
         async for event in self.agent.run(message):
-            print(event)
             if event.type==AgentEventType.TEXT_DELTA:
                 content = event.data.get("content", "")
                 if not assistant_streaming:
@@ -80,8 +79,8 @@ class CLI:
                     tool_kind,
                     event.data.get("success", False),
                     event.data.get("output", ""),
+                    event.data.get("error"),
                     event.data.get("metadata"),
-                    event.data.get("error", None),
                     event.data.get("truncated", False),
                 )
                 

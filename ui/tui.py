@@ -11,7 +11,6 @@ from pathlib import Path
 from utils.paths import display_path_rel_to_cwd
 import re
 from rich.syntax import Syntax
-from utils.text import truncate_text
 
 
 AGENT_THEME = Theme({
@@ -205,7 +204,10 @@ class TUI:
     def _extract_read_file_code(self, text: str) -> tuple[int, str] | None:
         body = text
 
-        header_match = re.match(r"^Showing lines (\d+)-(\d+) of (\d+)\n\n", text)
+        header_match = re.match(
+            r"^Showing lines (\d+)\s*-\s*(\d+) of (\d+)\.?(?:\s*\|\s*.*)?\n\n",
+            text,
+        )
         if header_match:
             body = body[header_match.end():]
 
@@ -213,7 +215,8 @@ class TUI:
         start_line: int | None = None
 
         for line in body.splitlines():
-            m = re.match(r"^\s*(\d+)\|(.*)$", line)
+            # read_file formats as "{n:6} | {content}"
+            m = re.match(r"^\s*(\d+) \| (.*)$", line)
             if not m:
                 return None
             line_num = int(m.group(1))
@@ -282,54 +285,62 @@ class TUI:
         )
 
         primary_path = None
-        blocks=[]
+        blocks: list[Any] = []
         if isinstance(metadata, dict) and isinstance(metadata.get("path"), str):
             primary_path = metadata.get("path")
 
         if name == "read_file" and success:
-            if primary_path:
-                start_line, code = self._extract_read_file_code(output)
-                shown_start = metadata.get("shown_start")
-                shown_end = metadata.get("shown_end")
-                total_lines = metadata.get("total_lines")
+            extracted = self._extract_read_file_code(output)
+            if extracted is not None and primary_path:
+                start_line, code = extracted
+                shown_start = metadata.get("shown_start") if metadata else None
+                shown_end = metadata.get("shown_end") if metadata else None
+                total_lines = metadata.get("total_lines") if metadata else None
+                language = self._guess_language(primary_path)
 
-                pl = self._guess_language(primary_path)
-                
-                blocks.append(Text())
-                
-                header_parts=display_path_rel_to_cwd(primary_path, self.cwd)
-                header_parts.append(" • ")
-                
-                if shown_start and shown_end and total_lines:
-                    header_parts.append(f"Showing lines {shown_start}-{shown_end} of {total_lines}")
-                
-                header= "".join(header_parts)
-                
-                blocks.append(Text(header, style="tool.highlight"))
-                blocks.append(Syntax(
-                    code,
-                    'text',
-                    theme="monokai",
-                    word_wrap=False,
-                ))
+                header_parts = [display_path_rel_to_cwd(primary_path, self.cwd)]
+                if (
+                    shown_start is not None
+                    and shown_end is not None
+                    and total_lines is not None
+                ):
+                    header_parts.append(
+                        f" • lines {shown_start}-{shown_end} of {total_lines}"
+                    )
+                blocks.append(Text("".join(header_parts), style="tool.highlight"))
+                blocks.append(
+                    Syntax(
+                        code,
+                        language,
+                        theme="monokai",
+                        line_numbers=True,
+                        start_line=start_line,
+                        word_wrap=False,
+                    )
+                )
             else:
-                output_display=truncate_text(output, "", 240)
-                blocks.append(Syntax(
-                    output_display,
-                    "text",
-                    theme="monokai",
-                    line_numbers=True,
-                    word_wrap=False,
-                ))
-                
+                blocks.append(
+                    Syntax(
+                        output,
+                        self._guess_language(primary_path),
+                        theme="monokai",
+                        line_numbers=False,
+                        word_wrap=False,
+                    )
+                )
+        elif not success and error:
+            blocks.append(Text(error, style="error"))
+        elif output:
+            blocks.append(Text(output, style="code"))
+
         if truncated:
-            blocks.append(Text("(note: tool output was truncated)", style='warning'))
-            
+            blocks.append(Text("(note: tool output was truncated)", style="warning"))
+
+        if not blocks:
+            blocks.append(Text("(no output)", style="tool.dim"))
 
         panel = Panel(
-            Group(
-                *blocks,
-            ),
+            Group(*blocks),
             title=title,
             padding=(1, 2),
             box=box.ROUNDED,
@@ -340,3 +351,4 @@ class TUI:
         )
         self.console.print()
         self.console.print(panel)
+        self.tool_args_by_call_id.pop(call_id, None)
