@@ -7,6 +7,7 @@ from ui.tui import get_console
 import sys
 from dotenv import load_dotenv
 from pathlib import Path
+from config.loader import load_config
 
 load_dotenv()
 
@@ -124,8 +125,20 @@ class CLI:
 
 @click.command()
 @click.argument("prompt", required=False)
+@click.option("--cwd", '-c', help="Current working directory", type=click.Path(exists=True, file_okay=False, path_type=Path))
 
-def main(prompt: str | None):
+def main(prompt: str | None, cwd: Path | None):
+    try:
+        config=load_config(cwd=cwd)
+    except Exception as e:
+        console.print(f"[error]Configuration error: {e}[\\error]")
+        
+    errors=config.validate()
+    if errors:
+        for error in errors:
+            console.print(f"[error]Configuration error: {e}[\\error]")
+        sys.exit(1)
+    
     cli=CLI()
     # messages = [{"role": "system", "content": prompt}]
     if prompt:
