@@ -2,6 +2,7 @@ from prompts.system import get_system_prompt
 from dataclasses import dataclass, field
 from utils.text import count_tokens
 from typing import Any
+from config.config import Config
 
 @dataclass
 class MessageItem:
@@ -27,9 +28,9 @@ class MessageItem:
         
     
 class ContextManager:
-    def __init__(self) -> None:
+    def __init__(self, config: Config) -> None:
         self._system_prompt = get_system_prompt()
-        self._model_name = "gpt-4o-mini"
+        self._model_name = config.model.name
         self._messages : list[MessageItem] = []
         
     def add_user_message(self, content: str) -> None:

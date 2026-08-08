@@ -11,6 +11,7 @@ from pathlib import Path
 from utils.paths import display_path_rel_to_cwd
 import re
 from rich.syntax import Syntax
+from config.config import Config
 
 
 AGENT_THEME = Theme({
@@ -119,11 +120,12 @@ def get_console() -> Console:
     return _console
 
 class TUI:
-    def __init__(self, console: Console | None = None)-> None:
+    def __init__(self, config: Config, console: Console | None = None)-> None:
         self.console = console or get_console()
         self._assistant_stream_open=False
         self.tool_args_by_call_id: dict[str, dict[str, Any]] = {}
-        self.cwd = Path.cwd()
+        self.config = config
+        self.cwd = self.config.cwd
     
     def begin_assistant(self)->None:
         self.console.print()

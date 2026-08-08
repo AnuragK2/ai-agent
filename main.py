@@ -8,6 +8,7 @@ import sys
 from dotenv import load_dotenv
 from pathlib import Path
 from config.loader import load_config
+from config.config import Config
 
 load_dotenv()
 
@@ -15,13 +16,14 @@ load_dotenv()
 console=get_console()
 class CLI:
     
-    def __init__(self):
+    def __init__(self, config: Config):
         self.agent : Agent | None = None
-        self.tui = TUI(console)
+        self.tui = TUI(config, console)
+        self.config = config
         
     
     async def run_single(self, message : str) -> str | None:
-        async with Agent() as agent:
+        async with Agent(config=self.config) as agent:
             self.agent = agent
             return await self._process_message(message)
         
@@ -33,12 +35,12 @@ class CLI:
                 "You can interact with the agent by typing commands.",
                 "The agent will respond to your commands and provide information.",
                 " ",
-                f'model: "gpt-4o-mini"',
-                f"cwd: {Path.cwd()}",
+                f'model: "{self.config.model.name}"',
+                f"cwd: {self.config.cwd}",
                 'commands: /help /config /approval /model /exit'
             ],
         )
-        async with Agent() as agent:
+        async with Agent(config=self.config) as agent:
             self.agent = agent
             while True:
                 try:
@@ -131,15 +133,15 @@ def main(prompt: str | None, cwd: Path | None):
     try:
         config=load_config(cwd=cwd)
     except Exception as e:
-        console.print(f"[error]Configuration error: {e}[\\error]")
-        
+        console.print(f"[error]Configuration error: {e}[/error]")
+        sys.exit(1)
     errors=config.validate()
     if errors:
         for error in errors:
-            console.print(f"[error]Configuration error: {e}[\\error]")
+            console.print(f"[error]Configuration error: {error}[/error]")
         sys.exit(1)
     
-    cli=CLI()
+    cli=CLI(config)
     # messages = [{"role": "system", "content": prompt}]
     if prompt:
         result = asyncio.run(cli.run_single(prompt))

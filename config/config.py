@@ -13,7 +13,7 @@ class ModelConfig(BaseModel):
 class Config(BaseModel):
     model: ModelConfig = Field(default=ModelConfig())
     cwd: Path = Field(default=Path.cwd())
-    max_turns = int = 100
+    max_turns: int = 100
     max_tool_output_tokens: int = 50_000
     
     developer_instructions: str | None = None
@@ -22,7 +22,7 @@ class Config(BaseModel):
     
     @property
     def api_key(self) -> str | None:
-        return os.environ.get("API_KEY")
+        return os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
     
     @property
     def base_url(self) -> str | None:
@@ -47,7 +47,7 @@ class Config(BaseModel):
     def validate(self) -> None:
         errors: list[str] = []
         if not self.api_key:
-            errors.append("API_KEY is not set. Set API_KEY in the environment variable")
+            errors.append("OPENAI_API_KEY is not set. Set OPENAI_API_KEY in the environment (or .env)")
         if not self.cwd.exists():
             errors.append(f"Working directory {self.cwd} does not exist")
         

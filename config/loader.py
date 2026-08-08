@@ -12,7 +12,7 @@ CONFIG_FILE_NAME = 'config.toml'
 AGENT_MD_FILE = "AGENT.MD"
 
 def get_config_dir() -> Path:
-    return Path(user_config_dir('cli-aiagent'))
+    return Path(user_config_dir('.ai-agent'))
 
 def get_system_config_path() -> Path:
     return get_config_dir() / CONFIG_FILE_NAME

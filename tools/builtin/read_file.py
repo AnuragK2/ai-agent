@@ -7,7 +7,7 @@ class ReadFileParams(BaseModel):
     path: str = Field(
         ..., 
         description='Path to the file to read (relative to the current working directory or absolute path)'
-        )
+    )
     offset: int = Field(1, ge=1, description='Line number to start reading from (1-based index). Defaults to 1.')
     limit: int | None = Field(
         None,
@@ -28,8 +28,15 @@ class ReadFileTool(Tool):
     schema= ReadFileParams
     
     MAX_FILE_SIZE=1024*1024*10 # 10MB
-    MAX_OUTPUT_TOKENS= 25000
-    _model_name = "gpt-4o-mini"
+
+    def __init__(
+        self,
+        model_name: str,
+        max_output_tokens: int = 50_000,
+    ) -> None:
+        super().__init__()
+        self._model_name = model_name
+        self._max_output_tokens = max_output_tokens
     
     async def execute(self, invocation: ToolInvocation)->ToolResult:
         
@@ -82,8 +89,13 @@ class ReadFileTool(Tool):
             token_count=count_tokens(output, self._model_name)
             truncated=False
             
-            if token_count > self.MAX_OUTPUT_TOKENS:
-                output=truncate_text(output, self.MAX_OUTPUT_TOKENS, suffix=f"\n... [truncated {total_lines} total lines]")
+            if token_count > self._max_output_tokens:
+                output=truncate_text(
+                    output,
+                    self._model_name,
+                    self._max_output_tokens,
+                    suffix=f"\n... [truncated {total_lines} total lines]",
+                )
                 truncated=True
                 
             metadata_lines=[]
@@ -103,11 +115,3 @@ class ReadFileTool(Tool):
             })
         except Exception as e:
             return ToolResult.error_result(f"Error reading file: {e}", f"Error reading file: {e}")
-    
-    
-    
-    
-            
-            
-            
-        

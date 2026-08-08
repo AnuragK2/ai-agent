@@ -1,8 +1,11 @@
+from re import S
 from openai import APIConnectionError, AsyncOpenAI, RateLimitError, APIError
 import os
 from typing import Any, AsyncGenerator
 from client.response import TextDelta, StreamEvent, TokenUsage, StreamEventType, ToolCallDelta, ToolCall, parse_tool_call_arguments
 import asyncio
+
+from config.config import Config
 
 class LLMClient:
     """Thin async wrapper around the OpenAI chat completions API.
@@ -13,7 +16,7 @@ class LLMClient:
     from ``OPENAI_API_KEY`` and ``OPENAI_BASE_URL`` environment variables.
     """
 
-    def __init__(self)-> None:
+    def __init__(self, config: Config)-> None:
         """Create a client with no underlying OpenAI connection yet.
 
         The real ``AsyncOpenAI`` instance is created lazily on first use via
@@ -22,7 +25,8 @@ class LLMClient:
         """
         self._client : AsyncOpenAI | None = None
         self.max_retries : int = 3
-
+        self.config = config
+        
     def get_client(self)-> AsyncOpenAI:
         """Return the shared ``AsyncOpenAI`` instance, creating it if needed.
 
@@ -37,7 +41,7 @@ class LLMClient:
             is missing when the client is first constructed.
         """
         if self._client is None:
-            self._client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), base_url=os.getenv("OPENAI_BASE_URL"))
+            self._client = AsyncOpenAI(api_key=self.config.api_key, base_url=self.config.base_url)
         return self._client
 
     async def close(self)-> None:
@@ -89,7 +93,7 @@ class LLMClient:
         """
         client = self.get_client()
         kwargs= {
-            "model":"gpt-4o-mini",
+            "model":self.config.model.name,
             "messages":messages,
             "stream":stream,
         }
