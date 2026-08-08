@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from tools.base import Tool, ToolInvocation, ToolResult, ToolKind
 from utils.paths import resolve_path, is_binary_file
 from utils.text import count_tokens, truncate_text
+from config.config import Config
 
 class ReadFileParams(BaseModel):
     path: str = Field(
@@ -29,14 +30,9 @@ class ReadFileTool(Tool):
     
     MAX_FILE_SIZE=1024*1024*10 # 10MB
 
-    def __init__(
-        self,
-        model_name: str,
-        max_output_tokens: int = 50_000,
-    ) -> None:
+    def __init__(self, config: Config) -> None:
         super().__init__()
-        self._model_name = model_name
-        self._max_output_tokens = max_output_tokens
+        self.config = config
     
     async def execute(self, invocation: ToolInvocation)->ToolResult:
         
@@ -86,14 +82,15 @@ class ReadFileTool(Tool):
                 formatted_lines.append(f"{i:6} | {line}")
                 
             output='\n'.join(formatted_lines)
-            token_count=count_tokens(output, self._model_name)
+            model_name=self.config.model.name
+            token_count=count_tokens(output, model_name)
             truncated=False
             
-            if token_count > self._max_output_tokens:
+            if token_count > self.config.max_tool_output_tokens:
                 output=truncate_text(
                     output,
-                    self._model_name,
-                    self._max_output_tokens,
+                    model_name,
+                    self.config.max_tool_output_tokens,
                     suffix=f"\n... [truncated {total_lines} total lines]",
                 )
                 truncated=True

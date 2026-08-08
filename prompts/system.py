@@ -1,8 +1,8 @@
 from datetime import datetime
 import platform
+from config.config import Config
 
-
-def get_system_prompt() -> str:
+def get_system_prompt(config: Config) -> str:
     parts = []
 
     # Identity and role
@@ -28,7 +28,15 @@ def get_system_prompt() -> str:
     # if user_memory:
     #     parts.append(_get_memory_section(user_memory))
     # Operational guidelines
+    if config.developer_instructions:
+        parts.append(_get_developer_instructions_section(config.developer_instructions))
+    
+    if config.user_instructions:
+        parts.append(_get_user_instructions_section(config.user_instructions))
+        
+    # Operational guidelines
     parts.append(_get_operational_section())
+
 
     return "\n\n".join(parts)
 
@@ -120,7 +128,7 @@ def _get_operational_section() -> str:
 - **Clarity over Brevity (When Needed):** While conciseness is key, prioritize clarity for essential explanations or when seeking necessary clarification if a request is ambiguous.
 - **No Chitchat:** Avoid conversational filler, preambles ("Okay, I will now..."), or postambles ("I have finished the changes..."). Get straight to the action or answer.
 - **Formatting:** Use GitHub-flavored Markdown. Responses will be rendered in monospace.
-- **Tools vs. Text:** Use tools for actions, text output *only* for communication. Do not add explanatory comments within tool calls or code blocks unless specifically part of the required code/command itself.
+- **Tools vs. Text:** Use tools for actions; use text only to communicate with the user. The CLI already renders every tool result (including full `read_file` contents). NEVER paste, quote, reformat, or dump tool output into your assistant message. After reading files, do not echo their contents — reply briefly (e.g. "Done.") or only answer a specific question about them. Prefer empty or minimal text when tools alone satisfied the request. Do not add explanatory comments within tool calls or code blocks unless specifically part of the required code/command itself.
 - **Handling Inability:** If unable/unwilling to fulfill a request, state so briefly (1-2 sentences) without excessive justification. Offer alternatives if appropriate.
 
 ## Primary Workflows
@@ -143,7 +151,7 @@ When requested to perform tasks like fixing bugs, adding features, refactoring, 
 
 ## Task Execution
 
-You are a coding agent. Please keep going until the query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved. Autonomously resolve the query to the best of your ability, using the tools available to you, before coming back to the user. Do NOT guess or make up an answer.
+You are a coding agent. Please keep going until the query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved. Autonomously resolve the query to the best of your ability, using the tools available to you, before coming back to the user. Do NOT guess or make up an answer. If the user only asked you to read or inspect files, calling the tools is enough — do not restate the file contents in text afterward.
 
 ## Tool Usage
 
@@ -188,22 +196,22 @@ If completing the user's task requires writing or modifying files, your code and
 - Do not use one-letter variable names unless explicitly requested."""
 
 
-# def _get_developer_instructions_section(instructions: str) -> str:
-#     return f"""# Project Instructions
+def _get_developer_instructions_section(instructions: str) -> str:
+    return f"""# Project Instructions
 
-# The following instructions were provided by the project maintainers:
+The following instructions were provided by the project maintainers:
 
-# {instructions}
+{instructions}
 
-# Follow these instructions carefully as they contain important context about this specific project."""
+Follow these instructions carefully as they contain important context about this specific project."""
 
 
-# def _get_user_instructions_section(instructions: str) -> str:
-#     return f"""# User Instructions
+def _get_user_instructions_section(instructions: str) -> str:
+    return f"""# User Instructions
 
-# The user has provided the following custom instructions:
+The user has provided the following custom instructions:
 
-# {instructions}"""
+{instructions}"""
 
 
 # def _get_memory_section(memory: str) -> str:

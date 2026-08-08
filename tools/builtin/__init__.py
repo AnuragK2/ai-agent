@@ -6,8 +6,5 @@ __all__=['ReadFileTool', 'get_all_builtin_tools']
 
 def get_all_builtin_tools(config: Config)->list[Tool]:
     return [
-        ReadFileTool(
-            model_name=config.model.name,
-            max_output_tokens=config.max_tool_output_tokens,
-        )
+        ReadFileTool(config=config),
     ]
