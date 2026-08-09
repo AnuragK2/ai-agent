@@ -150,6 +150,7 @@ class TUI:
         _PREFERRED_ORDER={
             'read_file':['path','offset','limit'],
             'write_file':['path','create_directories','content'],
+            'edit':['path','old_string','new_string','replace_all'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -355,7 +356,8 @@ class TUI:
                 )
         elif not success and error:
             blocks.append(Text(error, style="error"))
-        elif name == "write_file" and success and diff:
+            
+        elif name in {'write_file', 'edit'} and success and diff:
             output_line = output.strip() if output.strip() else "Completed"
             blocks.append(Text(output_line, style="tool.success"))
             diff_display = truncate_text(diff, self.config.model_name, self._max_block_tokens)
