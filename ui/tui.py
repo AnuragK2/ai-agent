@@ -152,6 +152,7 @@ class TUI:
             'write_file':['path','create_directories','content'],
             'edit':['path','old_string','new_string','replace_all'],
             'shell':['command','stdin','timeout','cwd'],
+            'list_dir':['path','recursive','include_hidden'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -183,9 +184,6 @@ class TUI:
             table.add_row(key, value)
         return table
         
-#     create hello world.py file for me and run it to test it
-
-# update it to have a user input and print the user input with hello world attached to it and then run it to test it
     def tool_call_start(self, call_id: str, name: str, tool_kind: str | None, arguments: dict[str, Any])-> None:
         self.tool_args_by_call_id[call_id] = arguments
         border_style= f"tool.{tool_kind}" if tool_kind else "tool"
@@ -373,6 +371,23 @@ class TUI:
             if body:
                 body_display = truncate_text(body, self.config.model_name, self._max_block_tokens)
                 blocks.append(Syntax(body_display, "text", theme="monokai", word_wrap=True))
+        elif name == 'list_dir':
+            entries=metadata.get('entries') if metadata else None
+            path=metadata.get('path') if metadata else None
+            recursive=metadata.get('recursive') if metadata else None
+            summary=[]
+            if isinstance(path, str):
+                summary.append(path)
+            if isinstance(entries, int):
+                summary.append(f'{entries} entries')
+            if recursive:
+                summary.append('recursive')
+            if summary:
+                blocks.append(Text(' • '.join(summary), style="tool.info"))
+            
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+            
         elif not success and error:
             blocks.append(Text(error, style="error"))
         elif name in {"write_file", "edit"} and success and diff:
@@ -382,6 +397,14 @@ class TUI:
             blocks.append(Syntax(diff_display, "diff", theme="monokai", word_wrap=True))
         elif output:
             blocks.append(Text(output, style="code"))
+        
+        if error and not success:
+            blocks.append(Text(error, style="error"))
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            if output_display.strip():
+                blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+            else:
+                blocks.append(Text("(no output)", style="tool.dim"))
 
         if truncated:
             blocks.append(Text("(note: tool output was truncated)", style="warning"))
