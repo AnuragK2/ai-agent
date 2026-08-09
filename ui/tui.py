@@ -151,6 +151,7 @@ class TUI:
             'read_file':['path','offset','limit'],
             'write_file':['path','create_directories','content'],
             'edit':['path','old_string','new_string','replace_all'],
+            'shell':['command','stdin','timeout','cwd'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -176,11 +177,15 @@ class TUI:
                     line_count=len(value.splitlines()) or 0
                     byte_count=len(value.encode('utf-8', errors='replace'))
                     value=f"{line_count} lines • {byte_count} bytes"
+            else:
+                value = str(value)
                     
             table.add_row(key, value)
         return table
         
-    
+#     create hello world.py file for me and run it to test it
+
+# update it to have a user input and print the user input with hello world attached to it and then run it to test it
     def tool_call_start(self, call_id: str, name: str, tool_kind: str | None, arguments: dict[str, Any])-> None:
         self.tool_args_by_call_id[call_id] = arguments
         border_style= f"tool.{tool_kind}" if tool_kind else "tool"
@@ -298,6 +303,7 @@ class TUI:
         metadata: dict[str, Any] | None,
         truncated: bool,
         diff: str | None,
+        exit_code: int | None,
     ) -> None:
         border_style = f"tool.{tool_kind}" if tool_kind else "tool"
         status_icon = "✔" if success else "✘"
@@ -309,7 +315,7 @@ class TUI:
             (" ", "muted"),
             (f"#{call_id[:8]}", "tool.highlight"),
         )
-
+        args=self.tool_args_by_call_id.get(call_id, {})
         primary_path = None
         blocks: list[Any] = []
         if isinstance(metadata, dict) and isinstance(metadata.get("path"), str):
@@ -354,17 +360,29 @@ class TUI:
                         word_wrap=False,
                     )
                 )
+        elif name == "shell":
+            command = args.get("command")
+            if isinstance(command, str) and command.strip():
+                blocks.append(Text(f"$ {command.strip()}", style="tool.shell"))
+            if exit_code is not None:
+                exit_style = "success" if exit_code == 0 else "error"
+                blocks.append(Text(f"exit {exit_code}", style=exit_style))
+            body = (output or "").strip()
+            if not body and error:
+                body = error.strip()
+            if body:
+                body_display = truncate_text(body, self.config.model_name, self._max_block_tokens)
+                blocks.append(Syntax(body_display, "text", theme="monokai", word_wrap=True))
         elif not success and error:
             blocks.append(Text(error, style="error"))
-            
-        elif name in {'write_file', 'edit'} and success and diff:
+        elif name in {"write_file", "edit"} and success and diff:
             output_line = output.strip() if output.strip() else "Completed"
             blocks.append(Text(output_line, style="tool.success"))
             diff_display = truncate_text(diff, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(diff_display, "diff", theme="monokai", word_wrap=True))
         elif output:
             blocks.append(Text(output, style="code"))
-            
+
         if truncated:
             blocks.append(Text("(note: tool output was truncated)", style="warning"))
 

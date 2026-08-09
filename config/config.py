@@ -7,12 +7,15 @@ class ModelConfig(BaseModel):
     temperature: float = Field(default=1, ge=0.0, le=2.0)
     context_window: int | None = None
     
+class ShellEnvironmentPolicy(BaseModel):
+    ignore_default_excludes: bool = False
+    exclude_patterns: list[str] = Field(default_factory=lambda:['*KEY*', '*TOKEN*', '*SECRET*'])
+    set_vars:dict[str, str] = Field(default_factory=dict)  
     
-    
-
 class Config(BaseModel):
     model: ModelConfig = Field(default=ModelConfig())
     cwd: Path = Field(default=Path.cwd())
+    shell_environment: ShellEnvironmentPolicy = Field(default_factory=ShellEnvironmentPolicy)
     max_turns: int = 100
     max_tool_output_tokens: int = 50_000
     

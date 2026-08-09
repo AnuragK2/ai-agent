@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from pydantic.json_schema import model_json_schema
 
+from config.config import Config
+
 
 class ToolKind(Enum):
     READ = "read"
@@ -57,6 +59,7 @@ class ToolResult:
     
     truncated: bool = False
     diff: FileDiff | None = None
+    exit_code: int | None = None
     
     @classmethod
     def error_result(cls, error: str, output: str = "", **kwargs: Any):
@@ -94,8 +97,9 @@ class Tool(abc.ABC):
     description: str = "Base tool"
     kind: ToolKind = ToolKind.READ
     
-    def __init__(self)->None:
-        pass
+    def __init__(self, config: Config)->None:
+        self.config=config
+        
     
     @property
     def schema(self)->dict[str, Any] | type[BaseModel]:

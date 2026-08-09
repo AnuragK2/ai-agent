@@ -50,4 +50,4 @@ class AgentEvent:
     
     @classmethod
     def tool_call_complete(cls, call_id: str, name: str, result: ToolResult) -> "AgentEvent":
-        return cls(type=AgentEventType.TOOL_CALL_COMPLETE, data={"call_id": call_id, "name": name, 'success':result.success, 'output':result.output, 'error':result.error, 'metadata':result.metadata, "truncated":result.truncated, "diff":result.diff.to_diff() if result.diff else None})
+        return cls(type=AgentEventType.TOOL_CALL_COMPLETE, data={"call_id": call_id, "name": name, 'success':result.success, 'output':result.output, 'error':result.error, 'metadata':result.metadata, "truncated":result.truncated, "diff":result.diff.to_diff() if result.diff else None, "exit_code":result.exit_code})

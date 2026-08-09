@@ -31,8 +31,7 @@ class ReadFileTool(Tool):
     MAX_FILE_SIZE=1024*1024*10 # 10MB
 
     def __init__(self, config: Config) -> None:
-        super().__init__()
-        self.config = config
+        super().__init__(config)
     
     async def execute(self, invocation: ToolInvocation)->ToolResult:
         

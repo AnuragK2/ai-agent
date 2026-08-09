@@ -64,5 +64,5 @@ class ToolRegistry:
 def create_default_registry(config: Config)->ToolRegistry:
     registry=ToolRegistry()
     for tool in get_all_builtin_tools(config):
-        registry.register_tool(tool)
+        registry.register_tool(tool(config))
     return registry
