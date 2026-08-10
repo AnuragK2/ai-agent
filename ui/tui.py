@@ -127,7 +127,7 @@ class TUI:
         self.tool_args_by_call_id: dict[str, dict[str, Any]] = {}
         self.config = config
         self.cwd = self.config.cwd
-        self._max_block_tokens=240
+        self._max_block_tokens=2500
     
     def begin_assistant(self)->None:
         self.console.print()
@@ -153,6 +153,7 @@ class TUI:
             'edit':['path','old_string','new_string','replace_all'],
             'shell':['command','stdin','timeout','cwd'],
             'list_dir':['path','recursive','include_hidden'],
+            'grep':['path', 'case_insensitive', 'pattern'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -358,7 +359,7 @@ class TUI:
                         word_wrap=False,
                     )
                 )
-        elif name == "shell":
+        elif name == "shell" and success:
             command = args.get("command")
             if isinstance(command, str) and command.strip():
                 blocks.append(Text(f"$ {command.strip()}", style="tool.shell"))
@@ -371,7 +372,7 @@ class TUI:
             if body:
                 body_display = truncate_text(body, self.config.model_name, self._max_block_tokens)
                 blocks.append(Syntax(body_display, "text", theme="monokai", word_wrap=True))
-        elif name == 'list_dir':
+        elif name == 'list_dir' and success:
             entries=metadata.get('entries') if metadata else None
             path=metadata.get('path') if metadata else None
             recursive=metadata.get('recursive') if metadata else None
@@ -387,9 +388,25 @@ class TUI:
             
             output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+        
+        elif name == 'grep' and success:
+            matches=metadata.get('matches') 
+            files_searched=metadata.get('files_searched')
+            summary=[]
+            if isinstance(matches, int):
+                summary.append(f'{matches} matches')
+            
+            if isinstance(files_searched, int):
+                summary.append(f'{files_searched} files searched')
+                
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="tool.info"))   
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
             
         elif not success and error:
             blocks.append(Text(error, style="error"))
+            
         elif name in {"write_file", "edit"} and success and diff:
             output_line = output.strip() if output.strip() else "Completed"
             blocks.append(Text(output_line, style="tool.success"))
