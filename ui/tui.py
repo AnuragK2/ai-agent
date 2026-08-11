@@ -154,6 +154,7 @@ class TUI:
             'shell':['command','stdin','timeout','cwd'],
             'list_dir':['path','recursive','include_hidden'],
             'grep':['path', 'case_insensitive', 'pattern'],
+            'glob':['path', 'pattern'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -403,6 +404,14 @@ class TUI:
                 blocks.append(Text(" • ".join(summary), style="tool.info"))   
             output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+        
+        elif name == 'glob' and success:
+            matches=metadata.get('matches') 
+            if isinstance(matches, int):
+                blocks.append(Text(f'{matches} files found', style="tool.info"))
+            
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))   
             
         elif not success and error:
             blocks.append(Text(error, style="error"))
