@@ -26,3 +26,5 @@ typing-inspection==0.4.2
 typing_extensions==4.16.0
 urllib3==2.7.0
 python-dotenv==1.2.2
+duckduckgo-search==7.5.0
+ddgs==9.14.4

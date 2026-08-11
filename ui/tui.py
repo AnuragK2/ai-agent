@@ -411,6 +411,20 @@ class TUI:
                 blocks.append(Text(f'{matches} files found', style="tool.info"))
             
             output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+        
+        elif name == 'web_search' and success:
+            results=metadata.get('results')
+            query=args.get('query')
+            summary=[] 
+            if isinstance(query, str):
+                summary.append(query)
+            if isinstance(results, int):
+                summary.append(f'{results} search results')
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="tool.info"))
+            
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))   
             
         elif not success and error:
