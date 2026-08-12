@@ -81,8 +81,12 @@ class ToolResult:
     
     def to_model_output(self) -> str:
         if self.success:
-            return self.output
-        return f"Error: {self.error}\n\nOutput:\n{self.output}"
+            return self.output or ""
+        error = self.error or "Unknown error"
+        output = self.output or ""
+        if output:
+            return f"Error: {error}\n\nOutput:\n{output}"
+        return f"Error: {error}"
 
 @dataclass
 class ToolConfirmation:

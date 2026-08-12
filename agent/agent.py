@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import AsyncGenerator
 from agent.events import AgentEvent
 from typing import Any
@@ -54,14 +55,14 @@ class Agent:
                     yield AgentEvent.agent_error(event.error or "Unknown error occurred")
                     
             self.session.context_manager.add_assistant_message(
-                response_text or None,
+                response_text or "",
                 [
                     {
                         'id': tc.call_id,
                         'type': 'function',
                         'function': {
                             'name': tc.name,
-                            'arguments': str(tc.arguments),
+                            'arguments': json.dumps(tc.arguments if isinstance(tc.arguments, dict) else {}),
                         },
                     }
                     for tc in tool_calls

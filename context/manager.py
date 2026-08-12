@@ -13,17 +13,16 @@ class MessageItem:
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     
     def to_dict(self) -> dict[str, Any]:
-        result: dict[str, Any] ={ 'role': self.role }
-        
-        if self.content:
-            result['content'] = self.content
-        
+        result: dict[str, Any] = {'role': self.role}
+        # OpenAI rejects null content; always send a string ("" is fine for tool-call turns).
+        result['content'] = self.content if isinstance(self.content, str) else ""
+
         if self.tool_call_id:
             result['tool_call_id'] = self.tool_call_id
-            
+
         if self.tool_calls:
             result['tool_calls'] = self.tool_calls
-            
+
         return result
         
     

@@ -145,6 +145,77 @@ class TUI:
     def print_error(self, message: str)-> None:
         self.console.print()
         self.console.print(f"[error]Error: {message}[/error]")
+
+    def _render_todos_view(
+        self,
+        action: str | None,
+        metadata: dict[str, Any] | None,
+        output: str,
+    ) -> list[Any]:
+        meta = metadata or {}
+        blocks: list[Any] = []
+        action = (action or meta.get("action") or "").lower()
+
+        header_map = {
+            "add": ("Added to plan", "tool.success"),
+            "complete": ("Completed", "tool.success"),
+            "list": ("Open tasks", "tool.info"),
+            "clear": ("Cleared", "tool.warning"),
+        }
+        title, title_style = header_map.get(action, ("Todos", "tool.info"))
+
+        open_count = meta.get("open")
+        count = meta.get("count") or meta.get("cleared")
+        summary_bits: list[str] = [title]
+        if isinstance(count, int) and action in {"add", "clear"}:
+            summary_bits.append(f"{count}")
+        if isinstance(open_count, int):
+            summary_bits.append(f"{open_count} open")
+        blocks.append(Text(" · ".join(summary_bits), style=title_style))
+
+        completed = meta.get("completed")
+        if isinstance(completed, dict) and completed.get("content"):
+            row = Text()
+            row.append(" ✔ ", style="success")
+            row.append(str(completed.get("id", "")), style="tool.muted")
+            row.append("  ")
+            row.append(str(completed["content"]), style="dim")
+            blocks.append(row)
+
+        todos = meta.get("todos") or meta.get("added") or []
+        if isinstance(todos, list) and todos:
+            table = Table(
+                box=box.SIMPLE,
+                show_header=True,
+                header_style="tool.muted",
+                padding=(0, 1),
+                expand=True,
+            )
+            table.add_column("", width=2, no_wrap=True)
+            table.add_column("ID", style="tool.highlight", no_wrap=True, width=10)
+            table.add_column("Task", style="code", overflow="fold")
+
+            show_done = action == "complete"
+            for item in todos:
+                if not isinstance(item, dict):
+                    continue
+                todo_id = str(item.get("id", ""))
+                content = str(item.get("content", ""))
+                is_done = bool(item.get("done")) or (
+                    show_done and isinstance(completed, dict) and todo_id == completed.get("id")
+                )
+                mark = Text("✔", style="success") if is_done else Text("○", style="tool.memory")
+                task = Text(content, style="dim" if is_done else "code")
+                table.add_row(mark, todo_id, task)
+            blocks.append(table)
+        elif action == "list":
+            blocks.append(Text("No open tasks — you're clear.", style="tool.dim"))
+        elif action == "clear":
+            blocks.append(Text("Task list emptied.", style="tool.dim"))
+        elif output.strip():
+            blocks.append(Text(output.strip(), style="code"))
+
+        return blocks
         
     def _ordered_args(self, tool_name: str, args: dict[str, Any])-> list[tuple[str, Any]]:
         _PREFERRED_ORDER={
@@ -152,6 +223,7 @@ class TUI:
             'write_file':['path','create_directories','content'],
             'edit':['path','old_string','new_string','replace_all'],
             'shell':['command','stdin','timeout','cwd'],
+            'todos':['action','items','content','id'],
             'list_dir':['path','recursive','include_hidden'],
             'grep':['path', 'case_insensitive', 'pattern'],
             'glob':['path', 'pattern'],
@@ -360,7 +432,7 @@ class TUI:
                         word_wrap=False,
                     )
                 )
-        elif name == "shell" and success:
+        elif name == "shell":
             command = args.get("command")
             if isinstance(command, str) and command.strip():
                 blocks.append(Text(f"$ {command.strip()}", style="tool.shell"))
@@ -443,24 +515,25 @@ class TUI:
             output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
             
-        elif not success and error:
-            blocks.append(Text(error, style="error"))
-            
+        elif name == 'todos' and success:
+            action = None
+            if isinstance(args, dict):
+                action = args.get("action")
+            if not action and isinstance(metadata, dict):
+                action = metadata.get("action")
+            blocks.extend(self._render_todos_view(action, metadata, output))
         elif name in {"write_file", "edit"} and success and diff:
             output_line = output.strip() if output.strip() else "Completed"
             blocks.append(Text(output_line, style="tool.success"))
             diff_display = truncate_text(diff, self.config.model_name, self._max_block_tokens)
             blocks.append(Syntax(diff_display, "diff", theme="monokai", word_wrap=True))
-        elif output:
+        elif success and output:
             blocks.append(Text(output, style="code"))
-        
-        if error and not success:
+        elif not success and error:
             blocks.append(Text(error, style="error"))
-            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
-            if output_display.strip():
+            if output and output.strip():
+                output_display = truncate_text(output, self.config.model_name, self._max_block_tokens)
                 blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
-            else:
-                blocks.append(Text("(no output)", style="tool.dim"))
 
         if truncated:
             blocks.append(Text("(note: tool output was truncated)", style="warning"))

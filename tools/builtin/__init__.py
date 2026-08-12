@@ -9,8 +9,9 @@ from tools.builtin.grep import GrepTool
 from tools.builtin.glob import GlobTool
 from tools.builtin.web_search import WebSearchTool
 from tools.builtin.web_fetch import WebFetchTool
+from tools.builtin.todo import TodosTool
 
-__all__=['ReadFileTool', 'WriteFileTool', 'EditTool', 'ShellTool', 'get_all_builtin_tools', 'ListDirTool', 'GrepTool', 'GlobTool', 'WebSearchTool', 'WebFetchTool']
+__all__=['ReadFileTool', 'WriteFileTool', 'EditTool', 'ShellTool', 'get_all_builtin_tools', 'ListDirTool', 'GrepTool', 'GlobTool', 'WebSearchTool', 'WebFetchTool', 'TodosTool']
 
 def get_all_builtin_tools(config: Config)->list[type[Tool]]:
     return [
@@ -23,4 +24,5 @@ def get_all_builtin_tools(config: Config)->list[type[Tool]]:
         GlobTool,
         WebSearchTool,
         WebFetchTool,
+        TodosTool,
     ]
