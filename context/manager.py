@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from utils.text import count_tokens
 from typing import Any
 from config.config import Config
-
+from tools.base import Tool
 @dataclass
 class MessageItem:
     role: str
@@ -27,8 +27,8 @@ class MessageItem:
         
     
 class ContextManager:
-    def __init__(self, config: Config) -> None:
-        self._system_prompt = get_system_prompt(config)
+    def __init__(self, config: Config, user_memory: str | None = None, tools: list[Tool] | None = None) -> None:
+        self._system_prompt = get_system_prompt(config, user_memory, tools)
         self.config = config
         self._model_name = config.model.name
         self._messages : list[MessageItem] = []

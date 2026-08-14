@@ -227,6 +227,8 @@ class TUI:
             'list_dir':['path','recursive','include_hidden'],
             'grep':['path', 'case_insensitive', 'pattern'],
             'glob':['path', 'pattern'],
+            'todo':['id','action','items','content'],
+            'memory':['action','key','value'],
         }
         preferred= _PREFERRED_ORDER.get(tool_name, [])
         ordered: list[tuple[str, Any]] = []
@@ -522,6 +524,29 @@ class TUI:
             if not action and isinstance(metadata, dict):
                 action = metadata.get("action")
             blocks.extend(self._render_todos_view(action, metadata, output))
+        
+        elif name == 'memory' and success:
+            action = args.get('action')
+            key = args.get('key')
+            value = args.get('value')
+            found = metadata.get('found') if metadata else None
+            summary=[]
+            if isinstance(action, str) and action:
+                summary.append(action)
+            if isinstance(key, str) and key:
+                summary.append(key)
+            if isinstance(value, str) and value:
+                summary.append(value)
+                
+            if isinstance(found, bool):
+                summary.append(f'{found}' if found else 'not found')
+            
+            if summary:
+                blocks.append(Text(" • ".join(summary), style="tool.info"))
+                
+            output_display=truncate_text(output, self.config.model_name, self._max_block_tokens)
+            blocks.append(Syntax(output_display, "text", theme="monokai", word_wrap=True))
+                
         elif name in {"write_file", "edit"} and success and diff:
             output_line = output.strip() if output.strip() else "Completed"
             blocks.append(Text(output_line, style="tool.success"))
