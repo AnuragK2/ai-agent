@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from pathlib import Path
 import os
-
+from typing import Any
 class ModelConfig(BaseModel):
     name: str = "gpt-4o-mini"
     temperature: float = Field(default=1, ge=0.0, le=2.0)
@@ -18,6 +18,7 @@ class Config(BaseModel):
     shell_environment: ShellEnvironmentPolicy = Field(default_factory=ShellEnvironmentPolicy)
     max_turns: int = 100
     max_tool_output_tokens: int = 50_000
+    allowed_tools: list[str] | None =Field(None, description="If set, only these tools will be allowed to be used by the agent")
     
     developer_instructions: str | None = None
     user_instructions: str | None = None
@@ -56,4 +57,6 @@ class Config(BaseModel):
         
         return errors
     
+    def to_dict(self) -> dict[str, Any]:
+        return self.model_dump(mode='json')
     
