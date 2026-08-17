@@ -1,0 +1,18 @@
+from pydantic import BaseModel, Field
+from tools.base import Tool, ToolInvocation, ToolResult, ToolKind
+
+class TestToolParams(BaseModel):
+    message: str = Field(..., description="The message to echo back")
+
+class TestTool(Tool):
+    name = "test_tool"
+    description = (
+        "A test tool that echoes back the message provided. "
+        "This tool is discovered from .ai-agent/tools/test_tool.py"
+    )
+    kind = ToolKind.READ
+    schema = TestToolParams
+
+    async def execute(self, invocation: ToolInvocation) -> ToolResult:
+        params = TestToolParams(**invocation.params)
+        return ToolResult.success_result(params.message)
