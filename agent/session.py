@@ -7,6 +7,7 @@ from client.llm_client import LLMClient
 import uuid
 from datetime import datetime
 from tools.discovery import ToolDiscoveryManager
+from tools.mcp.mcp_manager import MCPManager
 
 class Session:
     def __init__(self, config: Config):
@@ -14,13 +15,19 @@ class Session:
         self.client = LLMClient(config=config)
         self.tool_registry = create_default_registry(config)
         self.discovery_manager = ToolDiscoveryManager(config=config, registry=self.tool_registry)
-        self.discovery_manager.discover_all()
-        self.context_manager = ContextManager(config=config, user_memory=self._load_memory(), tools=self.tool_registry.get_tools())
+        self.context_manager: ContextManager | None = None
+        self.mcp_manager = MCPManager(self.config)
         self.session_id = str(uuid.uuid4())
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self._turn_count=0
-    
+        
+    async def initialize(self)-> None:
+        await self.mcp_manager.initialize()
+        self.mcp_manager.register_tools(self.tool_registry)
+        self.discovery_manager.discover_all()
+        self.context_manager = ContextManager(config=self.config, user_memory=self._load_memory(),tools=self.tool_registry.get_tools())
+
     def _load_memory(self) -> str | None:
         data_dir = get_data_dir()
         data_dir.mkdir(parents=True, exist_ok=True)

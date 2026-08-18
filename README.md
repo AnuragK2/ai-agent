@@ -1,6 +1,6 @@
 # CLI AI Agent
 
-A terminal coding agent written in Python. It streams LLM responses in a Rich TUI, runs a multi-turn tool loop, and ships a full builtin toolset (files, search, shell, web, memory, todos), specialized sub-agents, and project/user tool discovery.
+A terminal coding agent written in Python. It streams LLM responses in a Rich TUI, runs a multi-turn tool loop, and ships a full builtin toolset (files, search, shell, web, memory, todos), specialized sub-agents, project/user tool discovery, and MCP server tools.
 
 This document describes the project **as it exists today**: what is built, how the pieces connect, how to run it, and what is still incomplete.
 
@@ -20,15 +20,16 @@ This document describes the project **as it exists today**: what is built, how t
 10. [Agentic loop](#agentic-loop)
 11. [Tools system](#tools-system)
 12. [Custom tool discovery](#custom-tool-discovery)
-13. [Sub-agents](#sub-agents)
-14. [LLM client](#llm-client)
-15. [Context & prompts](#context--prompts)
-16. [TUI](#tui)
-17. [Utilities](#utilities)
-18. [Build progress / roadmap](#build-progress--roadmap)
-19. [Known limitations](#known-limitations)
-20. [Extending the project](#extending-the-project)
-21. [Project layout](#project-layout)
+13. [MCP servers](#mcp-servers)
+14. [Sub-agents](#sub-agents)
+15. [LLM client](#llm-client)
+16. [Context & prompts](#context--prompts)
+17. [TUI](#tui)
+18. [Utilities](#utilities)
+19. [Build progress / roadmap](#build-progress--roadmap)
+20. [Known limitations](#known-limitations)
+21. [Extending the project](#extending-the-project)
+22. [Project layout](#project-layout)
 
 ---
 
@@ -41,7 +42,8 @@ This document describes the project **as it exists today**: what is built, how t
 | **CLI** | [Click](https://click.palletsprojects.com/) |
 | **UI** | [Rich](https://rich.readthedocs.io/) |
 | **LLM API** | OpenAI-compatible Chat Completions (`openai` SDK) |
-| **Config** | Pydantic models + layered TOML + `AGENT.MD` |
+| **Config** | Pydantic models + layered TOML + `AGENT.MD` + MCP servers |
+| **MCP** | [FastMCP](https://gofastmcp.com/) client (stdio / SSE) |
 | **Entry point** | `main.py` |
 
 High-level flow:
@@ -56,14 +58,15 @@ User (prompt or interactive REPL)
         ▼
       Agent
         │
-      Session
-   ┌────┴────┬──────────────┐
-   ▼         ▼              ▼
-LLMClient  ContextManager  ToolRegistry
-   │         │              │
-   │         │              ├── builtins (read/write/edit/shell/…)
-   │         │              ├── subagents (investigator, reviewer)
-   │         │              └── discovered tools ({cwd}/.ai-agent/tools, user config/tools)
+      Session.initialize()
+   ┌────┴────┬──────────────┬────────────┐
+   ▼         ▼              ▼            ▼
+LLMClient  ContextManager  ToolRegistry  MCPManager
+   │         │              │            │
+   │         │              ├── builtins
+   │         │              ├── subagents
+   │         │              ├── discovered tools
+   │         │              └── mcp `{server}__{tool}`
    │         └── system + chat history + memory
    └── AsyncOpenAI (stream + tools)
 ```
@@ -81,6 +84,7 @@ LLMClient  ContextManager  ToolRegistry
 - Full builtin toolset: files, search, shell, web, todos, memory
 - Sub-agents: `codebase_investigator`, `code_reviewer` (isolated Agent runs with restricted tools)
 - Custom tool discovery from `{cwd}/.ai-agent/tools/*.py` and the user config `tools/` directory
+- MCP servers from config (`stdio` via `command`/`args`, or HTTP/SSE via `url`); tools registered as `{server}__{tool}`
 - OpenAI-compatible provider via `Config` (`api_key`, `base_url`, model name)
 - Layered config loading (user TOML → project TOML → `AGENT.MD`)
 - Startup config validation (`OPENAI_API_KEY` / `API_KEY`, cwd)
@@ -101,6 +105,7 @@ LLMClient  ContextManager  ToolRegistry
 - Python **3.14+** (developed against 3.14.x)
 - An OpenAI-compatible API key
 - Dependencies listed in `requirements.txt`
+- **Node.js / `npx`** if you use the example filesystem MCP server (`@modelcontextprotocol/server-filesystem`)
 
 Main libraries:
 
@@ -115,6 +120,7 @@ Main libraries:
 | `platformdirs` | OS user config / data directories |
 | `httpx` | `web_fetch` |
 | `ddgs` / `duckduckgo-search` | `web_search` |
+| `fastmcp` | MCP client (stdio / SSE transports) |
 
 ---
 
@@ -152,10 +158,15 @@ BASE_URL=https://api.openai.com/v1
 
 - **`ModelConfig`**: `name` (default `gpt-4o-mini`), `temperature` (0–2), optional `context_window`
 - **`ShellEnvironmentPolicy`**: env scrubbing for shell (`exclude_patterns`, `set_vars`, …)
+- **`MCPServerConfig`**: one MCP server. Either **stdio** (`command` + `args`) or **HTTP/SSE** (`url`), not both.
+  - `enabled` (default `true`), `startup_timeout_seconds` (default `10`)
+  - stdio: `command`, `args`, `env`, optional `cwd`
+  - `{cwd}` in `args` is replaced with the agent working directory
 - **`Config`**:
   - `model`, `cwd`, `shell_environment`
   - `max_turns` (default `100`), `max_tool_output_tokens` (default `50_000`)
   - `allowed_tools` — if set, registry exposes only those tool names (used by sub-agents)
+  - `mcp_servers` — `dict[str, MCPServerConfig]` keyed by server name
   - `developer_instructions`, `user_instructions`, `debug`
   - Properties: `api_key`, `base_url`, `model_name`, `temperature`
   - `validate()` → list of error strings (missing API key, missing cwd)
@@ -186,11 +197,16 @@ max_turns = 50
 [model]
 name = "gpt-4o-mini"
 temperature = 0.7
+
+# Optional MCP servers (this repo's .ai-agent/config.toml enables filesystem)
+[mcp_servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "{cwd}"]
 ```
 
 ### CLI option
 
-`--cwd` / `-c` sets which project root is used for config / `AGENT.MD` / `{cwd}/.ai-agent/tools` and becomes `Config.cwd` (tools resolve paths against it).
+`--cwd` / `-c` sets which project root is used for config / `AGENT.MD` / `{cwd}/.ai-agent/tools` and becomes `Config.cwd` (tools and MCP `{cwd}` expansion resolve against it).
 
 ---
 
@@ -237,8 +253,9 @@ python main.py -c /path/to/project "summarize this repo"
                             │ AgentEvent stream
 ┌───────────────────────────▼─────────────────────────────────┐
 │ Agent(config)                                               │
-│  Session: registry → discover_all → ContextManager          │
+│  Session.initialize: MCP → discover → ContextManager        │
 │  _agentic_loop: chat → tools → chat … until done/max_turns  │
+│  Session shutdown: LLM client + MCPManager.shutdown()       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -249,6 +266,7 @@ python main.py -c /path/to/project "summarize this repo"
 | Event-driven agent | UI stays thin; CLI maps events to Rich widgets |
 | Session owns clients/tools/context | One place for per-run wiring and lifecycle |
 | Filesystem tool discovery | Drop a `Tool` subclass into `.ai-agent/tools/` without editing the registry |
+| MCP via FastMCP | External tools over stdio or SSE without writing a local `Tool` class |
 | OpenAI-compatible client | One code path for OpenAI, OpenRouter, local gateways |
 | Pydantic tool schemas | Validation + OpenAI function JSON schema from one model |
 | `allowed_tools` on Config | Sub-agents get a restricted tool surface without a separate registry type |
@@ -273,7 +291,7 @@ python main.py -c /path/to/project "summarize this repo"
 | File | Responsibility |
 |------|----------------|
 | `agent.py` | `Agent` orchestration, multi-turn `_agentic_loop`, async context manager |
-| `session.py` | `Session` — LLM client, registry, discovery, context, turn counter, memory load |
+| `session.py` | `Session` — LLM client, registry, MCP, discovery, context, turn counter, memory |
 | `events.py` | `AgentEventType`, `AgentEvent` + factory helpers |
 
 ### `client/`
@@ -287,7 +305,7 @@ python main.py -c /path/to/project "summarize this repo"
 
 | File | Responsibility |
 |------|----------------|
-| `config.py` | `ModelConfig`, `ShellEnvironmentPolicy`, `Config` |
+| `config.py` | `ModelConfig`, `ShellEnvironmentPolicy`, `MCPServerConfig`, `Config` |
 | `loader.py` | TOML merge, `AGENT.MD`, `load_config`, `get_data_dir` |
 
 ### `context/`
@@ -301,9 +319,10 @@ python main.py -c /path/to/project "summarize this repo"
 | File | Responsibility |
 |------|----------------|
 | `base.py` | `Tool`, `ToolKind`, `ToolResult`, `FileDiff`, confirmation helpers |
-| `registry.py` | `ToolRegistry`, `create_default_registry()` (builtins + subagents) |
+| `registry.py` | `ToolRegistry` — builtins, subagents, `register_mcp_tool`, `create_default_registry()` |
 | `subagents.py` | `SubagentTool`, definitions, `get_default_subagents_definitions()` |
 | `discovery.py` | `ToolDiscoveryManager` — load `Tool` subclasses from project/user tool dirs |
+| `mcp/` | MCP client, manager, and `MCPTool` wrapper (see [MCP servers](#mcp-servers)) |
 | `builtin/*` | Individual tools (see [Tools system](#tools-system)) |
 
 ### `ui/`
@@ -381,7 +400,10 @@ else:
 
 ```python
 registry = create_default_registry(config)  # builtins + default subagents
-# Session then runs ToolDiscoveryManager.discover_all() before building context
+# Session.initialize() then:
+#   MCPManager.initialize + register_tools
+#   ToolDiscoveryManager.discover_all()
+#   ContextManager(..., tools=registry.get_tools())
 schemas = registry.get_schemas()            # filtered by config.allowed_tools if set
 result  = await registry.invoke("read_file", {"path": "main.py"}, config.cwd)
 ```
@@ -458,6 +480,61 @@ This repo includes `.ai-agent/tools/test_tool.py` as an example echo tool.
 
 ---
 
+## MCP servers
+
+MCP (Model Context Protocol) servers are configured in TOML and connected when the `Agent` context manager enters (`Session.initialize`). Tools from connected servers are wrapped as local `MCPTool` instances (`ToolKind.MCP`) and registered separately from builtins.
+
+### Lifecycle
+
+```text
+Agent.__aenter__
+  Session.initialize
+    MCPManager.initialize     # connect enabled servers (timeout per server)
+    MCPManager.register_tools # {server}__{remote_tool_name}
+    ToolDiscoveryManager.discover_all
+    ContextManager(...)       # system prompt includes MCP tools
+Agent.__aexit__
+  LLMClient.close
+  MCPManager.shutdown         # disconnect all clients
+```
+
+Connection errors are gathered with `return_exceptions=True`, so a failed server does not crash startup (that client stays in `ERROR` and contributes no tools).
+
+### Transports (`MCPClient`)
+
+- **stdio** — `command` + `args` via FastMCP `StdioTransport`. Subprocess stderr is discarded (`log_file=/dev/null`) so server logs do not leak into the TUI.
+- **SSE** — `url` via FastMCP `SSETransport`.
+
+In stdio `args`, the token `{cwd}` is replaced with the agent working directory (or that server’s own `cwd` if set).
+
+### Tool names
+
+Remote tool `read_file` from server `filesystem` is exposed to the model as **`filesystem__read_file`**. `execute` calls `MCPClient.call_tool` with the original remote name.
+
+### Example: filesystem server
+
+This project’s `.ai-agent/config.toml`:
+
+```toml
+[mcp_servers.filesystem]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "{cwd}"]
+```
+
+Requires Node.js/`npx`. The server only allows the directories passed as arguments; `{cwd}` should be a path that exists.
+
+HTTP example:
+
+```toml
+[mcp_servers.remote]
+url = "https://example.com/mcp"
+startup_timeout_seconds = 15
+```
+
+Disable a server without deleting it: `enabled = false`.
+
+---
+
 ## Sub-agents
 
 Sub-agents are registered as normal tools named `subagent_<name>`. Invoking one spins up a nested `Agent` with a cloned config (often with a lower `max_turns` and a restricted `allowed_tools` list), runs until completion/timeout/error, and returns a summary string to the parent.
@@ -506,7 +583,7 @@ Composed sections covering:
 
 - Agent identity
 - Environment (date, OS, cwd, shell)
-- Tool usage guidelines (including sub-agents and any discovered tools when present)
+- Tool usage guidelines (including sub-agents, discovered tools, and MCP tools when present)
 - `AGENTS.md` conventions (prompt guidance; loader still uses `AGENT.MD` for developer instructions)
 - Security guidelines
 - Optional remembered context from persistent memory
@@ -515,7 +592,7 @@ Composed sections covering:
 
 ### Session memory
 
-On session start, `Session` loads `user_memory.json` from the data dir (if present) and injects a summary into the system prompt. The `memory` tool reads/writes the same store.
+On session start, `Session.initialize()` connects MCP servers, registers their tools, discovers local custom tools, then builds `ContextManager`. Memory is loaded from `user_memory.json` in the data dir (if present) and injected into the system prompt. The `memory` tool reads/writes the same store.
 
 ---
 
@@ -563,11 +640,14 @@ Rough chronological capability build-up reflected in the codebase:
 10. **Persistent memory + todos**
 11. **Path / token helpers** — shared by tools and UI
 12. **Custom tool discovery** — load `Tool` subclasses from `.ai-agent/tools/` and the user config tools dir
+13. **MCP** — FastMCP client, TOML `mcp_servers`, `{server}__{tool}` wrappers, session shutdown
 
 **Next natural milestones**
 
 - Implement slash commands (at least `/exit`, `/help`, `/model`)
-- Wire tool confirmation / approval for mutating tools
+- Wire tool confirmation / approval for mutating tools (including MCP)
+- Surface MCP connect failures in the TUI (currently swallowed)
+- Advertise MCP Roots so filesystem servers are not limited to argv dirs only
 - Pass `temperature` (and related sampling params) through to the API
 - Unify base URL env vars (`BASE_URL` vs `OPENAI_BASE_URL`)
 - Context window enforcement / session persistence across process restarts
@@ -578,13 +658,16 @@ Rough chronological capability build-up reflected in the codebase:
 ## Known limitations
 
 1. **Slash commands** are advertised but not implemented (EOF to quit interactive mode).
-2. **No approval UX** — mutating tools can run without an interactive confirm step.
+2. **No approval UX** — mutating tools (including MCP, which always reports mutating) can run without an interactive confirm step.
 3. **`temperature` is not sent** to the chat completions API yet (config field exists).
 4. **`BASE_URL` vs `OPENAI_BASE_URL`** — client uses `Config.base_url` → `BASE_URL` only.
 5. **`AGENT.MD` vs `AGENTS.md`** naming inconsistency between loader and prompt text.
 6. **No tests / packaging** yet (`.env.example` exists).
 7. Interactive mode does not treat a missing final text reply as a hard error (by design after tool-only turns).
 8. Discovered tools that fail to import are skipped (logged); there is no TUI warning.
+9. **MCP connect failures** are swallowed (`asyncio.gather(..., return_exceptions=True)`); failed servers simply expose no tools.
+10. **MCP Roots** are not advertised; filesystem servers use only directories listed in `args`.
+11. Stdio MCP server stderr is discarded, so server warnings do not appear in the TUI.
 
 ---
 
@@ -600,6 +683,7 @@ Rough chronological capability build-up reflected in the codebase:
 
 - **Builtin:** follow existing tools under `tools/builtin/` and export from `get_all_builtin_tools()`.
 - **Project/user:** add a `Tool` subclass under `.ai-agent/tools/` (see [custom tool discovery](#custom-tool-discovery)). Restart the CLI so `Session` rediscovers files.
+- **MCP:** add an `[mcp_servers.<name>]` table in `.ai-agent/config.toml` (see [MCP servers](#mcp-servers)).
 
 Mark mutating tools with `ToolKind.WRITE` / `SHELL` / `NETWORK` and implement `get_confirmation()` when you add an approval UX.
 
@@ -624,7 +708,7 @@ cli-aiagent/
 │       └── test_tool.py    # example discovered tool
 ├── agent/
 │   ├── agent.py            # Agent + multi-turn agentic loop
-│   ├── session.py          # Session (client, registry, discovery, context)
+│   ├── session.py          # Session (client, registry, MCP, discovery, context)
 │   └── events.py           # AgentEvent types
 ├── client/
 │   ├── llm_client.py       # AsyncOpenAI wrapper
@@ -641,6 +725,10 @@ cli-aiagent/
 │   ├── registry.py         # Registry + defaults
 │   ├── discovery.py        # Load Tool subclasses from disk
 │   ├── subagents.py        # SubagentTool + definitions
+│   ├── mcp/
+│   │   ├── client.py       # FastMCP MCPClient + MCPToolInfo
+│   │   ├── mcp_manager.py  # connect / register / shutdown
+│   │   └── mcp_tool.py     # Tool wrapper for remote MCP tools
 │   └── builtin/
 │       ├── __init__.py
 │       ├── read_file.py

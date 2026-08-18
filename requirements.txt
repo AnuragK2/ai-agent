@@ -28,3 +28,4 @@ urllib3==2.7.0
 python-dotenv==1.2.2
 duckduckgo-search==7.5.0
 ddgs==9.14.4
+fastmcp==3.4.7

@@ -1,7 +1,10 @@
-from pydantic import BaseModel, Field
+from __future__ import annotations
+
+from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 import os
 from typing import Any
+
 class ModelConfig(BaseModel):
     name: str = "gpt-4o-mini"
     temperature: float = Field(default=1, ge=0.0, le=2.0)
@@ -10,7 +13,30 @@ class ModelConfig(BaseModel):
 class ShellEnvironmentPolicy(BaseModel):
     ignore_default_excludes: bool = False
     exclude_patterns: list[str] = Field(default_factory=lambda:['*KEY*', '*TOKEN*', '*SECRET*'])
-    set_vars:dict[str, str] = Field(default_factory=dict)  
+    set_vars:dict[str, str] = Field(default_factory=dict)
+
+class MCPServerConfig(BaseModel):
+    enabled: bool = True
+    startup_timeout_seconds: float = 10
+    
+    #stdio transport
+    command: str | None = None
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    cwd: Path | None = None
+    
+    #http/sse transport
+    url: str | None = None
+    
+    @model_validator(mode='after')
+    def validate_transport(self) -> MCPServerConfig:
+        has_command= self.command is not None
+        has_url= self.url is not None
+        if not has_command and not has_url:
+            raise ValueError("Either 'command' (stdio) or 'url' (http/sse) must be set for MCP server")
+        if has_command and has_url:
+            raise ValueError("Only one of 'command' (stdio) or 'url' (http/sse) can be set for MCP server")
+        return self
     
 class Config(BaseModel):
     model: ModelConfig = Field(default=ModelConfig())
@@ -23,6 +49,8 @@ class Config(BaseModel):
     developer_instructions: str | None = None
     user_instructions: str | None = None
     debug: bool = False
+    
+    mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
     
     @property
     def api_key(self) -> str | None:
