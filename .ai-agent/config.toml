@@ -1,5 +1,6 @@
 [model]
 temperature=0
+context_window=16000
 
 [mcp_servers.filesystem]
 command="npx"

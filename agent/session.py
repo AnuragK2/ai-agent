@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 from tools.discovery import ToolDiscoveryManager
 from tools.mcp.mcp_manager import MCPManager
+from context.compaction import ChatCompactor
 
 class Session:
     def __init__(self, config: Config):
@@ -17,6 +18,7 @@ class Session:
         self.discovery_manager = ToolDiscoveryManager(config=config, registry=self.tool_registry)
         self.context_manager: ContextManager | None = None
         self.mcp_manager = MCPManager(self.config)
+        self.chat_compactor=ChatCompactor(self.client)
         self.session_id = str(uuid.uuid4())
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
