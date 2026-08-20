@@ -135,7 +135,7 @@ class Tool(abc.ABC):
         return self.kind in [ToolKind.WRITE, ToolKind.SHELL, ToolKind.NETWORK, ToolKind.MEMORY]
     
     
-    async def get_confirmation(self, invocation: ToolInvocation)->ToolInvocation | None:
+    async def get_confirmation(self, invocation: ToolInvocation)->ToolConfirmation | None:
         if not self.is_mutating(invocation.params):
             return None
         
