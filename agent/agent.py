@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Awaitable, Callable
 from agent.events import AgentEvent
 from typing import Any
 from client.response import StreamEventType, ToolCall, ToolResultMessage
@@ -9,12 +9,11 @@ from agent.events import AgentEventType
 from config.config import Config
 from agent.session import Session
 from client.response import TokenUsage
+from tools.base import ToolConfirmation
 class Agent:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, confirmation_callback: (Callable[[ToolConfirmation], Awaitable[bool]] | None)=None):
         self.config = config
-        self.session : Session | None = Session(config=config)
-        
-        
+        self.session : Session | None = Session(config=config, confirmation_callback=confirmation_callback)
         
     async def run(self, message: str):
         yield AgentEvent.agent_start(message)
@@ -98,7 +97,7 @@ class Agent:
                 
             for tool_call in tool_calls:
                 yield AgentEvent.tool_call_start(tool_call.call_id, tool_call.name, tool_call.arguments)
-                result=await self.session.tool_registry.invoke(tool_call.name, tool_call.arguments, self.config.cwd)
+                result=await self.session.tool_registry.invoke(tool_call.name, tool_call.arguments, self.config.cwd, self.session.approval_manager)
                 yield AgentEvent.tool_call_complete(tool_call.call_id, tool_call.name, result)
                 
                 tool_call_results.append(ToolResultMessage(tool_call_id=tool_call.call_id, content=result.to_model_output(), is_error=not result.success))

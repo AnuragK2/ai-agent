@@ -9,9 +9,16 @@ from datetime import datetime
 from tools.discovery import ToolDiscoveryManager
 from tools.mcp.mcp_manager import MCPManager
 from context.compaction import ChatCompactor
+from safety.approval import ApprovalManager
+from tools.base import ToolConfirmation
+from typing import Awaitable, Callable
 
 class Session:
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        confirmation_callback: Callable[[ToolConfirmation], Awaitable[bool]] | None = None,
+    ):
         self.config = config
         self.client = LLMClient(config=config)
         self.tool_registry = create_default_registry(config)
@@ -23,7 +30,11 @@ class Session:
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
         self._turn_count=0
-        
+        self.approval_manager = ApprovalManager(
+            approval_policy=self.config.approval,
+            cwd=self.config.cwd,
+            confirmation_callback=confirmation_callback,
+        )
     async def initialize(self)-> None:
         await self.mcp_manager.initialize()
         self.mcp_manager.register_tools(self.tool_registry)

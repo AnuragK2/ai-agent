@@ -1,4 +1,4 @@
-from tools.base import Tool, ToolKind, ToolInvocation, ToolResult
+from tools.base import Tool, ToolKind, ToolInvocation, ToolResult, ToolConfirmation
 from pydantic import BaseModel, Field
 from pathlib import Path
 import os
@@ -57,6 +57,15 @@ class ShellTool(Tool):
         "(e.g. printf-style lines ending with newlines). Do not increase timeout to wait for user input."
     )
     schema=ShellParams
+    
+    async def get_confirmation(self, invocation: ToolInvocation) -> ToolConfirmation | None:
+        params=ShellParams(**invocation.params)
+        
+        for blocked in BLOCKED_COMMANDS:
+            if blocked in params.command:
+                return ToolConfirmation(tool_name=self.name, params=invocation.params, description=f"Command {params.command} is blocked for safety reasons.", command=params.command, is_dangerous=True)
+        
+        return ToolConfirmation(tool_name=self.name, params=invocation.params, description=f"Execute shell command: {params.command}", command=params.command, is_dangerous=False)
     
     async def execute(self, invocation:ToolInvocation)->ToolResult:
         params=ShellParams(**invocation.params)

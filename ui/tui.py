@@ -14,6 +14,8 @@ from rich.syntax import Syntax
 from config.config import Config
 from tools.base import FileDiff
 from utils.text import truncate_text
+from rich.prompt import Confirm
+from tools.base import ToolConfirmation
 
 AGENT_THEME = Theme({
     #General
@@ -579,3 +581,23 @@ class TUI:
         self.console.print()
         self.console.print(panel)
         self.tool_args_by_call_id.pop(call_id, None)
+
+
+    async def handle_confirmation(self, confirmation: ToolConfirmation) -> bool:
+        output=[
+            Text(confirmation.tool_name, style="tool"),
+            Text(confirmation.description, style="tool.info"),
+        ]
+        if confirmation.command:
+            output.append(Text(f"$ {confirmation.command}", style="tool.shell"))
+        if confirmation.diff:
+            diff_text= confirmation.diff.to_diff()
+            output.append(Syntax(diff_text, "diff", theme="monokai", word_wrap=True))
+
+        self.console.print()
+        self.console.print(Panel(Group(*output), title=Text('Approval required', style="tool.warning"), title_align="left",border_style="border", box=box.ROUNDED, padding=(1,2)))
+        try:
+            return Confirm.ask("[bold yellow]Approve?[/bold yellow]", default=False, console=self.console)
+        except (EOFError, KeyboardInterrupt):
+            self.console.print()
+            return False 

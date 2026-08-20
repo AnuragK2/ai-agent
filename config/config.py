@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, model_validator
 from pathlib import Path
 import os
 from typing import Any
+from enum import Enum
 
 class ModelConfig(BaseModel):
     name: str = "gpt-4o-mini"
@@ -37,7 +38,16 @@ class MCPServerConfig(BaseModel):
         if has_command and has_url:
             raise ValueError("Only one of 'command' (stdio) or 'url' (http/sse) can be set for MCP server")
         return self
+
+class ApprovalPolicy(str,Enum):
+    ON_REQUEST = "on-request"
+    ON_FAILURE = "on-failure"
+    AUTO = "auto"
+    AUTO_EDIT = "auto-edit"
+    NEVER = "never"
+    YOLO = "yolo"
     
+
 class Config(BaseModel):
     model: ModelConfig = Field(default=ModelConfig())
     cwd: Path = Field(default=Path.cwd())
@@ -45,6 +55,7 @@ class Config(BaseModel):
     max_turns: int = 100
     max_tool_output_tokens: int = 50_000
     allowed_tools: list[str] | None =Field(None, description="If set, only these tools will be allowed to be used by the agent")
+    approval: ApprovalPolicy = ApprovalPolicy.ON_REQUEST
     
     developer_instructions: str | None = None
     user_instructions: str | None = None

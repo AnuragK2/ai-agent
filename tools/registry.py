@@ -6,7 +6,7 @@ from tools.base import ToolResult, ToolInvocation
 from tools.builtin import get_all_builtin_tools
 from config.config import Config
 from tools.subagents import SubagentTool, get_default_subagents_definitions
-
+from safety.approval import ApprovalContext, ApprovalDecision, ApprovalManager
 
 logger=logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class ToolRegistry:
     def get_schemas(self)->list[dict[str, Any]]:
         return [tool.to_openai_schema() for tool in self.get_tools()]
     
-    async def invoke(self, name:str, params:dict[str, Any], cwd:Path) -> ToolResult:
+    async def invoke(self, name:str, params:dict[str, Any], cwd:Path, approval_manager: ApprovalManager | None = None) -> ToolResult:
         tool=self.get(name)
         if tool is None:
             return ToolResult.error_result(f"Tool not found: {name}, metadata={'tool_name': name}.")
@@ -69,6 +69,28 @@ class ToolRegistry:
             return ToolResult.error_result(f"Invalid parameters: {'; '.join(validation_errors)}", metadata={'tool_name': name, 'validation_errors': validation_errors})
         
         invocation=ToolInvocation(params=params, cwd=cwd)
+        if approval_manager:
+            confirmation=await tool.get_confirmation(invocation)
+            if confirmation:
+                context=ApprovalContext(
+                    tool_name=name,
+                    params=params,
+                    is_mutating=tool.is_mutating(params),
+                    affected_paths=confirmation.affected_paths,
+                    command=confirmation.command,
+                    is_dangerous=confirmation.is_dangerous,
+                )
+                decision=await approval_manager.check_approval(context)
+                if decision == ApprovalDecision.REJECTED:
+                    return ToolResult.error_result(
+                        "Operation was rejected by safety policy.",
+                    )
+                elif decision == ApprovalDecision.NEEDS_CONFIRMATION:
+                    approved=await approval_manager.request_confirmation(confirmation)
+                    if not approved:
+                        return ToolResult.error_result(
+                            "User did not approve the operation.",
+                        )
         try:
             result=await tool.execute(invocation)
         except Exception as e:
