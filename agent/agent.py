@@ -90,6 +90,7 @@ class Agent:
                 if usage:
                     self.session.context_manager.set_latest_usage(usage)
                     self.session.context_manager.add_usage(usage)
+                self.session.context_manager.prune_tool_outputs()
                 return
                 
             tool_call_results : list[ToolResultMessage] = []
@@ -108,6 +109,8 @@ class Agent:
             if usage:
                     self.session.context_manager.set_latest_usage(usage)
                     self.session.context_manager.add_usage(usage)
+                    
+            self.session.context_manager.prune_tool_outputs()
         
         yield AgentEvent.agent_error(f"Max turns ({max_turns}) exceeded. Task not completed.")
         
