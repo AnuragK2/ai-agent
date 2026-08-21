@@ -1,5 +1,18 @@
+hooks_enabled = true
+
 [model]
-temperature=0
+temperature = 0
+
+[[hooks]]
+name = "test_before_tool"
+trigger = "before-tool"
+command = "python3 ./scripts/test_tool.py"
+
+[[hooks]]
+name = "test_before_agent"
+trigger = "before-agent"
+command = "python3 ./scripts/test_tool.py"
+
 
 [mcp_servers.filesystem]
 command="npx"

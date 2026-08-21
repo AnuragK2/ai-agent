@@ -47,6 +47,26 @@ class ApprovalPolicy(str,Enum):
     NEVER = "never"
     YOLO = "yolo"
     
+class HookTrigger(str,Enum):
+    BEFORE_AGENT = "before-agent"
+    AFTER_AGENT = "after-agent"
+    BEFORE_TOOL = "before-tool"
+    AFTER_TOOL = "after-tool"
+    ON_ERROR = "on-error"
+    
+class HookConfig(BaseModel):
+    name: str
+    trigger: HookTrigger
+    command: str | None = None
+    script: str | None = None
+    timeout_sec : float =30
+    enabled: bool = True
+    
+    @model_validator(mode='after')
+    def validate_hook(self) -> HookConfig:
+        if not self.command and not self.script:
+            raise ValueError("Either 'command' or 'script' must be set for hook")
+        return self
 
 class Config(BaseModel):
     model: ModelConfig = Field(default=ModelConfig())
@@ -56,7 +76,8 @@ class Config(BaseModel):
     max_tool_output_tokens: int = 50_000
     allowed_tools: list[str] | None =Field(None, description="If set, only these tools will be allowed to be used by the agent")
     approval: ApprovalPolicy = ApprovalPolicy.ON_REQUEST
-    
+    hooks_enabled: bool = False
+    hooks: list[HookConfig] = Field(default_factory=list)
     developer_instructions: str | None = None
     user_instructions: str | None = None
     debug: bool = False

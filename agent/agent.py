@@ -16,6 +16,7 @@ class Agent:
         self.session : Session | None = Session(config=config, confirmation_callback=confirmation_callback)
         
     async def run(self, message: str):
+        await self.session.hook_system.trigger_before_agent(message)
         yield AgentEvent.agent_start(message)
         
         self.session.context_manager.add_user_message(message)
@@ -27,7 +28,8 @@ class Agent:
             
             if event.type==AgentEventType.TEXT_COMPLETE:
                 final_response = event.data["content"]
-                
+        
+        await self.session.hook_system.trigger_after_agent(message, final_response)        
         yield AgentEvent.agent_end(final_response)
     
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
@@ -97,7 +99,7 @@ class Agent:
                 
             for tool_call in tool_calls:
                 yield AgentEvent.tool_call_start(tool_call.call_id, tool_call.name, tool_call.arguments)
-                result=await self.session.tool_registry.invoke(tool_call.name, tool_call.arguments, self.config.cwd, self.session.approval_manager)
+                result=await self.session.tool_registry.invoke(tool_call.name, tool_call.arguments, self.config.cwd, self.session.hook_system, self.session.approval_manager)
                 yield AgentEvent.tool_call_complete(tool_call.call_id, tool_call.name, result)
                 
                 tool_call_results.append(ToolResultMessage(tool_call_id=tool_call.call_id, content=result.to_model_output(), is_error=not result.success))

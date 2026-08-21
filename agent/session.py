@@ -12,7 +12,7 @@ from context.compaction import ChatCompactor
 from safety.approval import ApprovalManager
 from tools.base import ToolConfirmation
 from typing import Awaitable, Callable
-
+from hooks.hook_system import HookSystem
 class Session:
     def __init__(
         self,
@@ -26,6 +26,7 @@ class Session:
         self.context_manager: ContextManager | None = None
         self.mcp_manager = MCPManager(self.config)
         self.chat_compactor=ChatCompactor(self.client)
+        self.hook_system = HookSystem(config)
         self.session_id = str(uuid.uuid4())
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
