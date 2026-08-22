@@ -177,7 +177,17 @@ class CLI:
             console.print("\n[bold green]Session Statistics:[/bold green]")
             for key, value in stats.items():
                 console.print(f"  {key.capitalize()}: {value}")
-        #18:08:41
+        elif cmd_name == '/tools':
+            tools=self.agent.session.tool_registry.get_tools()
+            console.print(f"\n[bold green]Available Tools: ({len(tools)})[/bold green]")
+            for tool in tools:
+                console.print(f" • {tool.name}")
+        elif cmd_name == '/mcp':
+            mcp_server=self.agent.session.mcp_manager.get_all_servers()
+            console.print(f"\n[bold green]Available MCP Servers: ({len(mcp_server)})[/bold green]")
+            for server in mcp_server:
+                status_color='green' if server['status'] == 'connected' else 'red'
+                console.print(f" • {server['name']} (Status: [bold {status_color}]{server['status']}[/bold {status_color}], Tools: {server['tools']})")
         else:
             console.print(f"[bold red]Unknown command: {cmd_name}[/bold red]")
         return True
