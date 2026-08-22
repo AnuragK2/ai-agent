@@ -17,6 +17,10 @@ class ToolRegistry:
         self.config = config
         self._mcp_tools: dict[str, Tool] = {}
         
+    @property
+    def connected_mcp_servers(self) -> list[Tool]:
+        return self._mcp_tools.values()
+        
     def register_mcp_tool(self, tool: Tool)->None:
         self._mcp_tools[tool.name]=tool
         logger.debug(f"Registered MCP tool: {tool.name}.")

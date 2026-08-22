@@ -8,7 +8,7 @@ import sys
 from dotenv import load_dotenv
 from pathlib import Path
 from config.loader import load_config
-from config.config import Config
+from config.config import ApprovalPolicy, Config
 
 load_dotenv()
 
@@ -47,6 +47,13 @@ class CLI:
                     user_input=console.input("[bold green]You:[/bold green] ").strip()
                     if not user_input:
                         continue
+                    
+                    if user_input.startswith('/'):
+                        should_continue=self._handle_command(user_input)
+                        if not should_continue:
+                            break
+                        continue
+                    
                     await self._process_message(user_input)
                     # result = await self._process_message(user_input)
                     # if result:
@@ -125,6 +132,56 @@ class CLI:
                 )
                 
         return final_response
+    
+    def _handle_command(self, command: str) -> bool:
+        cmd=command.lower().strip()
+        parts=cmd.split(maxsplit=1)
+        cmd_name=parts[0]
+        cmd_args=parts[1] if len(parts)>1 else ""
+        if cmd_name == '/exit' or cmd_name == '/quit':
+            return False
+        elif command == '/help':
+            self.tui.show_help()
+        elif command == '/clear':
+            self.agent.session.context_manager.clear()
+            self.agent.session.loop_detector.clear()
+            console.print("[bold green]Conversation history and loop detection cleared[/bold green]")
+        elif command == '/config':
+            console.print("\n[bold green]Current configuration:[/bold green]")
+            console.print(f"  Model: {self.config.model_name}")
+            console.print(f"  Temperature: {self.config.temperature}")
+            console.print(f"  Approval: {self.config.approval.value}")
+            console.print(f"  Working Dir: {self.config.cwd}")
+            console.print(f"  Max Turns: {self.config.max_turns}")
+            console.print(f"  Hooks Enabled: {self.config.hooks_enabled}")
+        elif cmd_name == '/model':
+            if cmd_args:
+                self.config.model_name=cmd_args
+                console.print(f"[bold green]Model changed to: {self.config.model_name}[/bold green]")
+            else:
+                console.print(f"Current model: {self.config.model_name}")
+        elif cmd_name == '/approval':
+            if cmd_args:
+                try:
+                    approval=ApprovalPolicy(cmd_args)
+                    self.config.approval=approval
+                    console.print(f"[bold green]Approval Policy changed to: {approval.value}[/bold green]")
+                except:
+                    console.print(f"[bold red]Invalid approval policy: {cmd_args}[/bold red]")
+                    console.print(f"[bold red]Valid policies are: {', '.join([p.value for p in ApprovalPolicy])}.[/bold red]")
+            else:
+                console.print(f"Current approval policy is: {self.config.approval.value}")
+                
+        elif cmd_name == '/stats':
+            stats=self.agent.session.get_stats()
+            console.print("\n[bold green]Session Statistics:[/bold green]")
+            for key, value in stats.items():
+                console.print(f"  {key.capitalize()}: {value}")
+        #18:08:41
+        else:
+            console.print(f"[bold red]Unknown command: {cmd_name}[/bold red]")
+        return True
+        
             
 
 @click.command()

@@ -41,6 +41,14 @@ class ContextManager:
         self._latest_usage = TokenUsage()
         self._total_usage = TokenUsage()
         
+    @property
+    def message_count(self) -> int:
+        return len(self._messages)
+    
+    @property
+    def total_usage(self) -> TokenUsage:
+        return self._total_usage
+        
     def add_user_message(self, content: str) -> None:
         item=MessageItem(role="user", content=content, token_count=count_tokens(content, self._model_name))
         self._messages.append(item)
@@ -156,3 +164,6 @@ I'll continue with the REMAINING tasks only, starting from where we left off."""
             pruned_count += 1
         
         return pruned_count
+    
+    def clear(self) -> None:
+        self._messages = []
