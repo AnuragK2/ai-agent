@@ -13,6 +13,7 @@ from safety.approval import ApprovalManager
 from tools.base import ToolConfirmation
 from typing import Awaitable, Callable
 from hooks.hook_system import HookSystem
+from context.loop_detector import LoopDetector
 class Session:
     def __init__(
         self,
@@ -27,6 +28,7 @@ class Session:
         self.mcp_manager = MCPManager(self.config)
         self.chat_compactor=ChatCompactor(self.client)
         self.hook_system = HookSystem(config)
+        self.loop_detector = LoopDetector()
         self.session_id = str(uuid.uuid4())
         self.created_at = datetime.now()
         self.updated_at = datetime.now()

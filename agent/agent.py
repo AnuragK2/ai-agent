@@ -10,6 +10,8 @@ from config.config import Config
 from agent.session import Session
 from client.response import TokenUsage
 from tools.base import ToolConfirmation
+from prompts.system import create_loop_breaker_prompt
+
 class Agent:
     def __init__(self, config: Config, confirmation_callback: (Callable[[ToolConfirmation], Awaitable[bool]] | None)=None):
         self.config = config
@@ -86,6 +88,7 @@ class Agent:
                 
             if response_text:
                 yield AgentEvent.text_complete(response_text)
+                self.session.loop_detector.record_action('response', text=response_text)
             
             if not tool_calls:
                 if usage:
@@ -99,6 +102,8 @@ class Agent:
                 
             for tool_call in tool_calls:
                 yield AgentEvent.tool_call_start(tool_call.call_id, tool_call.name, tool_call.arguments)
+                self.session.loop_detector.record_action('tool_call', tool_name=tool_call.name, args=tool_call.arguments)
+                
                 result=await self.session.tool_registry.invoke(tool_call.name, tool_call.arguments, self.config.cwd, self.session.hook_system, self.session.approval_manager)
                 yield AgentEvent.tool_call_complete(tool_call.call_id, tool_call.name, result)
                 
@@ -106,7 +111,11 @@ class Agent:
             
             for tool_result in tool_call_results:
                 self.session.context_manager.add_tool_result(tool_result.tool_call_id, tool_result.content)
-            
+            loop_detection_error=self.session.loop_detector.check_for_loop()
+            if loop_detection_error:
+                loop_prompt=create_loop_breaker_prompt(loop_detection_error)
+                self.session.context_manager.add_user_message(loop_prompt)
+
             if usage:
                     self.session.context_manager.set_latest_usage(usage)
                     self.session.context_manager.add_usage(usage)
